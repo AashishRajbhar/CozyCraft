@@ -51,7 +51,7 @@
 
 ---
 
-## ⚡ Additional Features
+## Additional Features
 
 - **⌘K Command Palette**: Press `⌘ + K` (or `Ctrl + K`) anywhere to search and launch tools instantly.
 - **Favorites & Starred Routines**: Pin your most used tools for one-click access.
