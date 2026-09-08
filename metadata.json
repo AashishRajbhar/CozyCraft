@@ -1,0 +1,6 @@
+{
+  "name": "CozyCraft Studio",
+  "description": "A calm, private digital workshop with instant client-side tools running in local WebAssembly and browser memory. Zero data leaves your computer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
