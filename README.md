@@ -1,40 +1,41 @@
-# CozyCraft Studio 🎨✨
+# CozyCraft Studio 
 
 > **Your calm, private digital workshop.**  
 > Instant, client-side tools running in local WebAssembly and browser memory. **Zero server uploads — 100% private.**
 
 ---
 
-## 🌟 Overview
+## Overview
 
 **CozyCraft Studio** is a privacy-first, on-device web utility suite built with modern web technologies. All media, audio synthesis, file transcoding, image processing, and code scanning occur **exclusively inside your browser**. No files or personal data ever touch a remote server.
 
 ---
 
-## 🛠️ Included Offline Tools
+## Included Offline Tools
 
-### 1. 🎙️ Text to Voice Studio
-- **What it does**: Synthesizes natural speech offline using neural WASM audio engines.
+### 1. Text to Voice Studio (Edge-TTS Engine)
+- **What it does**: Synthesizes natural, high-fidelity neural speech using Python `edge-tts`.
 - **Key Features**:
-  - Choose between curated personas (*Ember*, *Hazel*, *River*, *Nova*).
-  - Fine-tune speech pitch, cadence, and whisper attributes.
-  - Export uncompressed `.wav` or compressed `.mp3` audio clips.
+  - Multilingual voice support: English (US & UK), Hindi, Bengali, Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, and Taiwanese Mandarin.
+  - Select between top neural personas like `en-US-GuyNeural` ⭐, `en-US-JennyNeural` ⭐, `hi-IN-MadhurNeural`, `zh-TW-HsiaoChenNeural`, etc.
+  - Fine-tune speech pitch offset (Hz) and speed rate (%).
+  - Real-time interactive waveform player and instant `.mp3` export.
 
-### 2. 🔄 Universal File Converter
+### 2. Universal File Converter
 - **What it does**: Transcodes audio, video, and documents locally without file size restrictions.
 - **Key Features**:
   - Powered by client-side FFmpeg WebAssembly.
   - Supports 100+ format conversions (MP4, MP3, WEBM, WAV, PNG, JPEG, SVG, PDF, etc.).
   - Preserves metadata and file quality with zero cloud queues.
 
-### 3. 🪄 Background Remover
+### 3. Background Remover
 - **What it does**: Instantly segments image subjects and removes backgrounds directly using your computer's GPU.
 - **Key Features**:
   - Fast WebGPU / Canvas cutout processing.
   - High-precision edge detection for portraits, products, and graphic assets.
   - Download isolated transparent `.png` files.
 
-### 4. 🔳 Text & Image QR Code Generator
+### 4. Text & Image QR Code Generator
 - **What it does**: Generates customizable, high-resolution vector and raster QR codes offline.
 - **Key Features**:
   - Encode Web Links, Plain Text, Wi-Fi Network Credentials, or vCard Contact Cards.
@@ -42,7 +43,7 @@
   - Customizable foreground/background color palettes.
   - Instant **PNG** (1024x1024), **SVG** vector download, or Copy to Clipboard.
 
-### 5. 🔍 Bar Code & QR Code Reader
+### 5. Bar Code & QR Code Reader
 - **What it does**: Decodes 1D product barcodes and 2D QR codes locally from uploaded images or live camera stream.
 - **Key Features**:
   - **Dual Mode**: Upload image files (PNG/JPG/WEBP) or stream live from your webcam.
@@ -51,7 +52,7 @@
 
 ---
 
-## ⚡ Additional Features
+## Additional Features
 
 - **⌘K Command Palette**: Press `⌘ + K` (or `Ctrl + K`) anywhere to search and launch tools instantly.
 - **Favorites & Starred Routines**: Pin your most used tools for one-click access.
@@ -59,7 +60,7 @@
 
 ---
 
-## 🚀 How to Run Locally
+## How to Run Locally
 
 ### Prerequisites
 - **Node.js** (v18.0.0 or higher)
@@ -83,7 +84,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 📦 Building for Production
+## Building for Production
 
 To create an optimized production build:
 
@@ -99,7 +100,7 @@ npm run preview
 
 ---
 
-## 🌐 Deploying Online
+## Deploying Online
 
 Because CozyCraft Studio is **100% client-side**, the generated `dist` folder can be hosted on any static hosting platform:
 
@@ -110,7 +111,7 @@ Because CozyCraft Studio is **100% client-side**, the generated `dist` folder ca
 
 ---
 
-## 🧰 Built With
+## Built With
 
 - **Framework**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
 - **Build Tool**: [Vite](https://vitejs.dev/)

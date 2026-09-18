@@ -22,17 +22,12 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<NavTab>('studio');
 
   // Done Work State
-  const [doneWork, setDoneWork] = useState<DoneWorkItem[]>(INITIAL_DONE_WORK);
-  const [ramUsageMb, setRamUsageMb] = useState<number>(5.05);
+  const [doneWork, setDoneWork] = useState<DoneWorkItem[]>([]);
+  const [ramUsageMb, setRamUsageMb] = useState<number>(0.0);
   const [ramLimitMb, setRamLimitMb] = useState<number>(512);
 
   // Favorites state
-  const [favoriteToolIds, setFavoriteToolIds] = useState<string[]>([
-    'text-to-voice',
-    'bg-remover',
-    'file-converter',
-    'qr-code',
-  ]);
+  const [favoriteToolIds, setFavoriteToolIds] = useState<string[]>([]);
 
   // System & Isolation State
   const [offlineMode, setOfflineMode] = useState<boolean>(true);

@@ -21,6 +21,7 @@ export interface ToolItem {
   footerTag: string;
   iconName: string;
   isFavorite?: boolean;
+  isUnderConstruction?: boolean;
 }
 
 export interface DoneWorkItem {
@@ -46,6 +47,7 @@ export interface DoneWorkItem {
 export interface VoicePersona {
   id: string;
   name: string;
+  voiceId: string;
   subtitle: string;
   tag: string;
   letter: string;
@@ -53,9 +55,12 @@ export interface VoicePersona {
   textColor: string;
   borderColor: string;
   gender: 'female' | 'male' | 'neutral';
+  language: string;
+  locale: string;
   defaultPitch: number;
   defaultRate: number;
   whisperSupport: boolean;
+  isPopular?: boolean;
 }
 
 export interface AudioGeneration {

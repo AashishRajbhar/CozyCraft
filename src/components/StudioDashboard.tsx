@@ -16,7 +16,8 @@ import {
   ArrowRight,
   FileText,
   CheckCircle2,
-  Flame
+  Flame,
+  Wrench
 } from 'lucide-react';
 import { ToolCategory, ActiveView, DoneWorkItem, ToolItem } from '../types';
 import { TOOLS } from '../data/mockData';
@@ -341,15 +342,27 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({
                 {/* Top Row: Icon + WASM / GPU tag */}
                 <div className="flex items-start justify-between">
                   {renderToolIcon(tool.iconName, tool.accentColor)}
-                  <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-[#F2ECE4] text-[#5A5762] border border-[#E2D8CC]">
-                    {tool.tag}
-                  </span>
+                  {tool.isUnderConstruction ? (
+                    <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-[#FFEEDA] text-[#A05E32] border border-[#F8D7BE] flex items-center gap-1">
+                      <Wrench className="w-3 h-3 text-[#A05E32]" />
+                      Under Construction
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-[#F2ECE4] text-[#5A5762] border border-[#E2D8CC]">
+                      {tool.tag}
+                    </span>
+                  )}
                 </div>
 
                 {/* Title & Description */}
                 <div className="mt-4">
-                  <h3 className="font-bold text-base sm:text-lg text-[#191C21] group-hover:text-[#534C72] transition-colors">
+                  <h3 className="font-bold text-base sm:text-lg text-[#191C21] group-hover:text-[#534C72] transition-colors flex items-center gap-2">
                     {tool.title}
+                    {tool.isUnderConstruction && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-[#FFEEDA] text-[#A05E32] border border-[#F8D7BE] font-mono">
+                        🛠️ WIP
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs sm:text-sm text-[#6C6975] mt-1.5 leading-relaxed">
                     {tool.description}
@@ -360,12 +373,12 @@ export const StudioDashboard: React.FC<StudioDashboardProps> = ({
               {/* Card Footer: Status & Launch Tool Link */}
               <div className="mt-5 pt-3.5 border-t border-[#F2ECE4] flex items-center justify-between text-xs font-medium">
                 <span className="inline-flex items-center gap-1.5 text-[#5A5762] font-mono">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3EA25E]" />
+                  <span className={`w-1.5 h-1.5 rounded-full ${tool.isUnderConstruction ? 'bg-[#D97A53] animate-pulse' : 'bg-[#3EA25E]'}`} />
                   {tool.footerTag}
                 </span>
 
                 <span className="inline-flex items-center gap-1 text-[#534C72] group-hover:translate-x-0.5 transition-transform font-semibold">
-                  Launch Tool
+                  {tool.isUnderConstruction ? 'View Work' : 'Launch Tool'}
                   <ArrowRight className="w-3.5 h-3.5" />
                 </span>
               </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowLeftRight, Upload, Download, Check, ShieldCheck, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Upload, Download, Check, ShieldCheck, FileText, Loader2, Wrench, AlertTriangle } from 'lucide-react';
 import { DoneWorkItem } from '../types';
 
 interface FileConverterViewProps {
@@ -81,9 +81,27 @@ export const FileConverterView: React.FC<FileConverterViewProps> = ({
           <span className="text-[#191C21] font-medium">Universal File Converter</span>
         </div>
 
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono bg-[#EBF5ED] text-[#2F6D44] border border-[#CFE8D7]">
-          <ShieldCheck className="w-3.5 h-3.5 text-[#2F6D44]" />
-          FFmpeg WebAssembly Core
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono bg-[#FFEEDA] text-[#A05E32] border border-[#F8D7BE]">
+          <Wrench className="w-3.5 h-3.5 text-[#A05E32]" />
+          Under Construction
+        </div>
+      </div>
+
+      {/* Under Construction Banner */}
+      <div className="p-5 rounded-2xl bg-[#FFEEDA] border border-[#F8D7BE] flex flex-col sm:flex-row items-start sm:items-center gap-4 text-[#A05E32] shadow-2xs">
+        <div className="w-10 h-10 rounded-xl bg-[#F6DCBE] flex items-center justify-center shrink-0">
+          <Wrench className="w-5 h-5 text-[#A05E32]" />
+        </div>
+        <div className="space-y-1">
+          <div className="font-bold text-base flex items-center gap-2">
+            <span>🚧 Under Construction / Work in Progress</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-[#A05E32] text-white font-mono">
+              Module v2.0
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm leading-relaxed text-[#7C431D]">
+            The Universal File Converter tool is currently under active construction. Full FFmpeg WASM video, audio, and document format transcoding pipeline enhancements are being integrated.
+          </p>
         </div>
       </div>
 
@@ -102,67 +120,76 @@ export const FileConverterView: React.FC<FileConverterViewProps> = ({
         </div>
       </div>
 
-      {/* Main card */}
-      <div className="bg-white rounded-2xl border border-[#E8DFD4] p-6 shadow-sm space-y-6">
-        {!selectedFileName ? (
-          <div className="border-2 border-dashed border-[#D5CAC0] rounded-2xl p-10 text-center space-y-4 bg-[#F9F6F1]">
-            <div className="w-14 h-14 rounded-full bg-[#EAF5ED] text-[#2F6D44] mx-auto flex items-center justify-center">
-              <Upload className="w-7 h-7" />
+      {/* Card */}
+      <div className="bg-white rounded-2xl border border-[#E8DFD4] p-6 sm:p-7 shadow-sm space-y-6">
+        {/* Upload Zone */}
+        <div className="border-2 border-dashed border-[#E4DBD0] rounded-xl p-8 text-center bg-[#FAF7F2]/60 hover:bg-[#FAF7F2] transition-colors">
+          <input
+            type="file"
+            id="file-input"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <label htmlFor="file-input" className="cursor-pointer flex flex-col items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-[#EAF5ED] text-[#2F6D44] flex items-center justify-center">
+              <Upload className="w-6 h-6" />
             </div>
-            <div className="space-y-1">
-              <h3 className="font-bold text-base text-[#191C21]">
-                Drop file to convert locally in browser memory
-              </h3>
-              <p className="text-xs text-[#79767F]">
-                Supports 100+ formats. Video, audio, raster images, vectors, and documents.
-              </p>
+            <div>
+              <div className="font-semibold text-[#191C21] text-base">
+                Click to select a file or drag & drop here
+              </div>
+              <div className="text-xs text-[#79767F] mt-1 font-mono">
+                Supports Video, Audio, Image, and Document formats (Up to 2GB)
+              </div>
             </div>
-            <div className="flex items-center justify-center gap-3 pt-2">
-              <label className="px-5 py-2.5 rounded-full bg-[#534C72] hover:bg-[#433D5D] text-white text-xs font-medium cursor-pointer shadow-sm transition-all">
-                Choose Local File
-                <input type="file" onChange={handleFileUpload} className="hidden" />
-              </label>
-              <button
-                onClick={handleSelectSample}
-                className="px-4 py-2.5 rounded-full bg-[#F2ECE4] text-[#272A30] border border-[#E2D8CC] text-xs font-medium hover:bg-[#EAE2D8] transition-all"
-              >
-                Use Sample Asset
-              </button>
-            </div>
+          </label>
+
+          <div className="mt-4 pt-4 border-t border-[#E8DFD4] flex items-center justify-center gap-2 text-xs">
+            <span className="text-[#79767F]">Or try sample:</span>
+            <button
+              onClick={handleSelectSample}
+              className="text-[#534C72] font-semibold hover:underline"
+            >
+              branding_artwork_master.png
+            </button>
           </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8DFD4] flex items-center justify-between">
+        </div>
+
+        {/* Selected file details & options */}
+        {selectedFileName && (
+          <div className="bg-[#FAF7F2] rounded-xl p-4 border border-[#E2D8CC] space-y-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#EAF5ED] text-[#2F6D44] flex items-center justify-center">
-                  <FileText className="w-5 h-5" />
-                </div>
+                <FileText className="w-5 h-5 text-[#534C72]" />
                 <div>
-                  <div className="font-semibold text-[#191C21] text-sm">{selectedFileName}</div>
-                  <div className="text-xs text-[#79767F] font-mono">{fileSize} • In RAM buffer</div>
+                  <div className="font-semibold text-sm text-[#191C21]">
+                    {selectedFileName}
+                  </div>
+                  <div className="text-xs font-mono text-[#79767F]">
+                    {fileSize}
+                  </div>
                 </div>
               </div>
 
-              <button
-                onClick={() => setSelectedFileName(null)}
-                className="text-xs text-[#79767F] hover:text-[#BA1A1A]"
-              >
-                Change File
-              </button>
+              <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#EBF5ED] text-[#2F6D44]">
+                Ready to Transcode
+              </span>
             </div>
 
-            {/* Target format selector */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-[#191C21]">Convert to Target Format</label>
-              <div className="flex flex-wrap gap-2">
+            {/* Target format picker */}
+            <div className="space-y-2 pt-2 border-t border-[#E8DFD4]">
+              <div className="text-xs font-semibold text-[#191C21]">
+                Target Export Format
+              </div>
+              <div className="flex items-center flex-wrap gap-2">
                 {formats.map((fmt) => (
                   <button
                     key={fmt}
                     onClick={() => setTargetFormat(fmt)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-medium uppercase transition-all ${
+                    className={`px-3 py-1 rounded-lg text-xs font-mono font-medium transition-all ${
                       targetFormat === fmt
-                        ? 'bg-[#534C72] text-white shadow-xs'
-                        : 'bg-[#F2ECE4] text-[#48464E] hover:bg-[#E8DFD4]'
+                        ? 'bg-[#534C72] text-white shadow-2xs'
+                        : 'bg-white text-[#5A5762] border border-[#E2D8CC] hover:bg-[#F2ECE4]'
                     }`}
                   >
                     .{fmt}
@@ -171,44 +198,55 @@ export const FileConverterView: React.FC<FileConverterViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-[#E8DFD4]">
-              <span className="text-xs text-[#5A5762] font-mono">
-                Engine: FFmpeg 6.0 WASM (Threaded Web Worker)
-              </span>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={runConversion}
-                  disabled={converting}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#534C72] hover:bg-[#433D5D] text-white text-xs font-medium shadow-sm transition-all"
-                >
-                  {converting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Transcoding in WebAssembly...
-                    </>
-                  ) : (
-                    <>
-                      <ArrowLeftRight className="w-4 h-4" />
-                      Convert to .{targetFormat}
-                    </>
-                  )}
-                </button>
-
-                {convertedFileUrl && (
-                  <a
-                    href={convertedFileUrl}
-                    download={outputName}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-[#EAF5ED] text-[#2F6D44] border border-[#CFE8D7] text-xs font-medium hover:bg-[#D8ECD8] transition-all"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Download .{targetFormat}
-                  </a>
+            {/* Action button */}
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={runConversion}
+                disabled={converting}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#534C72] hover:bg-[#433D5D] text-white text-sm font-medium transition-all shadow-2xs disabled:opacity-50"
+              >
+                {converting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Transcoding in WASM...
+                  </>
+                ) : (
+                  <>
+                    <ArrowLeftRight className="w-4 h-4" />
+                    Convert File to .{targetFormat.toUpperCase()}
+                  </>
                 )}
-              </div>
+              </button>
             </div>
           </div>
         )}
+
+        {/* Converted result output */}
+        {convertedFileUrl && (
+          <div className="p-4 rounded-xl bg-[#EBF5ED] border border-[#CFE8D7] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Check className="w-5 h-5 text-[#2F6D44]" />
+              <div>
+                <div className="font-semibold text-sm text-[#191C21]">
+                  {outputName}
+                </div>
+                <div className="text-xs font-mono text-[#2F6D44]">
+                  Successfully transcoded locally inside browser memory.
+                </div>
+              </div>
+            </div>
+
+            <a
+              href={convertedFileUrl}
+              download={outputName}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#2F6D44] hover:bg-[#255736] text-white text-xs font-medium transition-colors shadow-2xs"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download Result
+            </a>
+          </div>
+        )}
+
       </div>
     </div>
   );
