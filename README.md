@@ -13,13 +13,13 @@
 
 ## Included Offline Tools
 
-### 1. Text to Voice Studio (Edge-TTS Engine)
-- **What it does**: Synthesizes natural, high-fidelity neural speech using Python `edge-tts`.
+
+### 1. Text to Voice Studio
+- **What it does**: Synthesizes natural speech offline using neural WASM audio engines.
 - **Key Features**:
-  - Multilingual voice support: English (US & UK), Hindi, Bengali, Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, and Taiwanese Mandarin.
-  - Select between top neural personas like `en-US-GuyNeural` ⭐, `en-US-JennyNeural` ⭐, `hi-IN-MadhurNeural`, `zh-TW-HsiaoChenNeural`, etc.
-  - Fine-tune speech pitch offset (Hz) and speed rate (%).
-  - Real-time interactive waveform player and instant `.mp3` export.
+  - Choose between curated personas (*Ember*, *Hazel*, *River*, *Nova*).
+  - Fine-tune speech pitch, cadence, and whisper attributes.
+  - Export uncompressed `.wav` or compressed `.mp3` audio clips.
 
 ### 2. Universal File Converter
 - **What it does**: Transcodes audio, video, and documents locally without file size restrictions.
