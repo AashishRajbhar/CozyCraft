@@ -13,6 +13,7 @@
 
 ## Included Offline Tools
 
+
 ### 1. Text to Voice Studio
 - **What it does**: Synthesizes natural speech offline using neural WASM audio engines.
 - **Key Features**:

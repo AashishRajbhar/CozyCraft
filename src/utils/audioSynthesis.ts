@@ -15,6 +15,51 @@ export function generateAudioWaveform(count: number = 36, seed: number = 42): nu
   return bars;
 }
 
+export async function synthesizeEdgeTTSAudio(
+  text: string,
+  voiceId: string = 'en-US-GuyNeural',
+  ratePercentage: number = 0,
+  pitchHz: number = 0
+): Promise<{ blob: Blob; url: string; duration: number }> {
+  const rateStr = `${ratePercentage >= 0 ? '+' : ''}${Math.round(ratePercentage)}%`;
+  const pitchStr = `${pitchHz >= 0 ? '+' : ''}${Math.round(pitchHz)}Hz`;
+
+  const response = await fetch('/api/tts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text,
+      voice: voiceId,
+      rate: rateStr,
+      pitch: pitchStr,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Edge-TTS API failed (${response.status}): ${errorText}`);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+
+  // Get duration using audio element
+  const duration = await new Promise<number>((resolve) => {
+    const audio = new Audio(url);
+    audio.onloadedmetadata = () => {
+      resolve(Math.round(audio.duration * 10) / 10 || 3.0);
+    };
+    audio.onerror = () => {
+      const words = text.trim().split(/\s+/).filter(Boolean).length;
+      resolve(Math.max(1.5, Math.round((words / 2.5) * 10) / 10));
+    };
+  });
+
+  return { blob, url, duration };
+}
+
 export function createSynthesizedWavBlob(
   text: string,
   persona: string,

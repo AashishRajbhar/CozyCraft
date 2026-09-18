@@ -16,14 +16,16 @@ import {
   Trash2,
   Loader2,
   Clock,
-  Database
+  Database,
+  Globe,
+  Star
 } from 'lucide-react';
 import { VOICE_PERSONAS, INITIAL_GENERATIONS } from '../data/mockData';
 import { VoicePersona, AudioGeneration } from '../types';
 import {
   generateAudioWaveform,
+  synthesizeEdgeTTSAudio,
   createSynthesizedWavBlob,
-  playBrowserSpeech,
   stopBrowserSpeech,
 } from '../utils/audioSynthesis';
 
@@ -31,6 +33,21 @@ interface TextToVoiceStudioProps {
   onBack: () => void;
   onGenerationComplete?: (gen: AudioGeneration) => void;
 }
+
+const LANGUAGE_FILTERS = [
+  'All',
+  'English (US)',
+  'English (UK)',
+  'Hindi',
+  'Bengali',
+  'Tamil',
+  'Telugu',
+  'Kannada',
+  'Malayalam',
+  'Marathi',
+  'Gujarati',
+  'Taiwanese Mandarin'
+];
 
 export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
   onBack,
@@ -40,16 +57,17 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
   const [scriptText, setScriptText] = useState(
     'Take a slow, deep breath in... hold gently for a moment... and exhale softly, releasing any tension from your shoulders and mind.'
   );
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('ember');
-  const [cadence, setCadence] = useState<number>(1.0);
-  const [pitchOffset, setPitchOffset] = useState<number>(0.0);
-  const [deliveryMode, setDeliveryMode] = useState<'natural' | 'whisper'>('natural');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('All');
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('en-us-guy');
+  const [ratePercentage, setRatePercentage] = useState<number>(0); // -50% to +50%
+  const [pitchHz, setPitchHz] = useState<number>(0); // -20Hz to +20Hz
 
   // Generation & Active Result state
   const [isSynthesizing, setIsSynthesizing] = useState<boolean>(false);
   const [copiedScript, setCopiedScript] = useState<boolean>(false);
   const [activeResult, setActiveResult] = useState<{
     persona: string;
+    voiceId: string;
     delivery: string;
     sampleRateText: string;
     durationSeconds: number;
@@ -59,11 +77,12 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
     blob?: Blob;
     waveform: number[];
   }>({
-    persona: 'Ember',
-    delivery: 'Natural Speech',
-    sampleRateText: '24kHz Uncompressed',
+    persona: 'Guy (en-US-GuyNeural)',
+    voiceId: 'en-US-GuyNeural',
+    delivery: 'Microsoft Edge-TTS Neural',
+    sampleRateText: 'High Fidelity MP3 Stream',
     durationSeconds: 8.4,
-    currentTime: 3.4,
+    currentTime: 0,
     isPlaying: false,
     waveform: generateAudioWaveform(36, 12),
   });
@@ -72,13 +91,14 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
   const [generations, setGenerations] = useState<AudioGeneration[]>(INITIAL_GENERATIONS);
   const [playingGenId, setPlayingGenId] = useState<string | null>(null);
 
-  // Playback timer ref
-  const playbackTimerRef = useRef<number | null>(null);
-  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  // Audio HTML elements refs
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const genAudioElementRef = useRef<HTMLAudioElement | null>(null);
 
-  // Est duration calculation
-  const wordCount = scriptText.trim().split(/\s+/).filter(Boolean).length;
-  const estDuration = Math.max(1.5, Math.round((wordCount / (2.5 * cadence)) * 10) / 10);
+  // Filter personas by language
+  const filteredPersonas = selectedLanguage === 'All'
+    ? VOICE_PERSONAS
+    : VOICE_PERSONAS.filter(p => p.language === selectedLanguage);
 
   const selectedPersona = VOICE_PERSONAS.find((p) => p.id === selectedPersonaId) || VOICE_PERSONAS[0];
 
@@ -86,77 +106,118 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
   useEffect(() => {
     return () => {
       stopBrowserSpeech();
-      if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+      }
+      if (genAudioElementRef.current) {
+        genAudioElementRef.current.pause();
+      }
     };
   }, []);
 
+  // Est duration calculation
+  const wordCount = scriptText.trim().split(/\s+/).filter(Boolean).length;
+  const speedFactor = 1 + (ratePercentage / 100);
+  const estDuration = Math.max(1.0, Math.round((wordCount / (2.5 * Math.max(0.5, speedFactor))) * 10) / 10);
+
   // Handle Play/Pause for Active Synthesis Result
   const togglePlayActive = () => {
+    if (!activeResult.audioUrl) {
+      // Synthesize first if no audioUrl
+      handleSynthesize();
+      return;
+    }
+
+    if (!audioElementRef.current) {
+      audioElementRef.current = new Audio(activeResult.audioUrl);
+      
+      audioElementRef.current.ontimeupdate = () => {
+        if (audioElementRef.current) {
+          setActiveResult((prev) => ({
+            ...prev,
+            currentTime: audioElementRef.current?.currentTime || 0,
+          }));
+        }
+      };
+
+      audioElementRef.current.onended = () => {
+        setActiveResult((prev) => ({ ...prev, isPlaying: false, currentTime: prev.durationSeconds }));
+      };
+    }
+
     if (activeResult.isPlaying) {
-      stopBrowserSpeech();
-      if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
+      audioElementRef.current.pause();
       setActiveResult((prev) => ({ ...prev, isPlaying: false }));
     } else {
-      // Start real speech synthesis or timer playback
-      const targetDuration = activeResult.durationSeconds;
-      setActiveResult((prev) => ({ ...prev, isPlaying: true, currentTime: 0 }));
-
-      activeUtteranceRef.current = playBrowserSpeech(
-        scriptText,
-        activeResult.persona,
-        cadence,
-        pitchOffset,
-        () => {
-          setActiveResult((prev) => ({ ...prev, isPlaying: false, currentTime: targetDuration }));
-          if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
-        }
-      );
-
-      const step = 0.1;
-      if (playbackTimerRef.current) clearInterval(playbackTimerRef.current);
-      playbackTimerRef.current = window.setInterval(() => {
-        setActiveResult((prev) => {
-          if (prev.currentTime >= prev.durationSeconds) {
-            clearInterval(playbackTimerRef.current!);
-            return { ...prev, isPlaying: false, currentTime: prev.durationSeconds };
-          }
-          return { ...prev, currentTime: Math.min(prev.durationSeconds, prev.currentTime + step) };
-        });
-      }, 100);
+      if (audioElementRef.current.src !== activeResult.audioUrl) {
+        audioElementRef.current.src = activeResult.audioUrl;
+      }
+      audioElementRef.current.play().then(() => {
+        setActiveResult((prev) => ({ ...prev, isPlaying: true }));
+      }).catch(err => {
+        console.error("Audio playback error:", err);
+        setActiveResult((prev) => ({ ...prev, isPlaying: false }));
+      });
     }
   };
 
   // Scrub active audio waveform
   const handleScrubWaveform = (fraction: number) => {
     const newTime = Math.round(fraction * activeResult.durationSeconds * 10) / 10;
+    if (audioElementRef.current) {
+      audioElementRef.current.currentTime = newTime;
+    }
     setActiveResult((prev) => ({ ...prev, currentTime: newTime }));
   };
 
-  // Synthesize Speech button action
+  // Synthesize Speech button action using Edge-TTS
   const handleSynthesize = async () => {
     if (!scriptText.trim()) return;
     setIsSynthesizing(true);
     stopBrowserSpeech();
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+    }
 
     try {
-      // Generate actual WAV in browser RAM
-      const { blob, url, duration } = await createSynthesizedWavBlob(
-        scriptText,
-        selectedPersona.name,
-        cadence,
-        pitchOffset,
-        deliveryMode === 'whisper'
-      );
+      let blob: Blob;
+      let url: string;
+      let duration: number;
+
+      try {
+        // Call Python Edge-TTS API
+        const result = await synthesizeEdgeTTSAudio(
+          scriptText,
+          selectedPersona.voiceId,
+          ratePercentage,
+          pitchHz
+        );
+        blob = result.blob;
+        url = result.url;
+        duration = result.duration;
+      } catch (apiError) {
+        console.warn("Edge-TTS API call failed, falling back to Web Audio synthesis:", apiError);
+        const result = await createSynthesizedWavBlob(
+          scriptText,
+          selectedPersona.name,
+          1 + (ratePercentage / 100),
+          pitchHz / 5
+        );
+        blob = result.blob;
+        url = result.url;
+        duration = result.duration;
+      }
 
       const newWaveform = generateAudioWaveform(36, Math.floor(Math.random() * 100));
 
       const newResult = {
-        persona: selectedPersona.name,
-        delivery: deliveryMode === 'whisper' ? 'Whisper Soft' : 'Natural Speech',
-        sampleRateText: '24kHz Uncompressed',
+        persona: `${selectedPersona.name} (${selectedPersona.voiceId})`,
+        voiceId: selectedPersona.voiceId,
+        delivery: `Microsoft Edge-TTS (${selectedPersona.language})`,
+        sampleRateText: '24kHz High-Fidelity MP3',
         durationSeconds: duration,
         currentTime: 0,
-        isPlaying: false,
+        isPlaying: true,
         audioUrl: url,
         blob: blob,
         waveform: newWaveform,
@@ -164,17 +225,35 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
 
       setActiveResult(newResult);
 
+      // Play newly generated audio immediately
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+      }
+      audioElementRef.current = new Audio(url);
+      audioElementRef.current.ontimeupdate = () => {
+        if (audioElementRef.current) {
+          setActiveResult((prev) => ({
+            ...prev,
+            currentTime: audioElementRef.current?.currentTime || 0,
+          }));
+        }
+      };
+      audioElementRef.current.onended = () => {
+        setActiveResult((prev) => ({ ...prev, isPlaying: false, currentTime: duration }));
+      };
+      audioElementRef.current.play().catch(e => console.error("Auto-play error:", e));
+
       // Create new generation record
-      const fileName = `${selectedPersona.name.toLowerCase()}_narration_${Date.now().toString().slice(-4)}.wav`;
+      const fileName = `${selectedPersona.voiceId.toLowerCase()}_${Date.now().toString().slice(-4)}.mp3`;
       const sizeKb = Math.round(blob.size / 1024);
       const newGen: AudioGeneration = {
         id: `gen-${Date.now()}`,
         fileName,
-        personaName: selectedPersona.name,
+        personaName: `${selectedPersona.name} (${selectedPersona.tag})`,
         durationText: `${duration.toFixed(1)}s`,
         durationSeconds: duration,
         sizeText: `${sizeKb} KB`,
-        format: 'wav',
+        format: 'mp3',
         text: scriptText,
         timestamp: 'Just now',
         audioBlobUrl: url,
@@ -190,8 +269,8 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
   };
 
   // Download active file
-  const handleDownload = (format: 'wav' | 'mp3') => {
-    const filename = `${activeResult.persona.toLowerCase()}_speech_${Date.now().toString().slice(-4)}.${format}`;
+  const handleDownload = (format: 'mp3' | 'wav' = 'mp3') => {
+    const filename = `${activeResult.voiceId.toLowerCase()}_speech_${Date.now().toString().slice(-4)}.${format}`;
     if (activeResult.audioUrl) {
       const a = document.createElement('a');
       a.href = activeResult.audioUrl;
@@ -199,16 +278,6 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    } else {
-      // Fallback: create blob on demand
-      createSynthesizedWavBlob(scriptText, activeResult.persona).then(({ url }) => {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      });
     }
   };
 
@@ -225,8 +294,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
       const text = await navigator.clipboard.readText();
       if (text) setScriptText(text);
     } catch {
-      // In case permissions restrict clipboard read
-      const sample = 'Breathe in tranquility, breathe out distraction. Let every breath ground you in quiet awareness.';
+      const sample = 'Welcome to CozyCraft Studio. High-quality neural speech synthesis running with Microsoft Edge-TTS.';
       setScriptText(sample);
     }
   };
@@ -234,14 +302,20 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
   // Play generation item
   const handleTogglePlayGen = (gen: AudioGeneration) => {
     if (playingGenId === gen.id) {
-      stopBrowserSpeech();
+      if (genAudioElementRef.current) {
+        genAudioElementRef.current.pause();
+      }
       setPlayingGenId(null);
     } else {
-      stopBrowserSpeech();
-      setPlayingGenId(gen.id);
-      playBrowserSpeech(gen.text, gen.personaName, 1.0, 0, () => {
-        setPlayingGenId(null);
-      });
+      if (genAudioElementRef.current) {
+        genAudioElementRef.current.pause();
+      }
+      if (gen.audioBlobUrl) {
+        genAudioElementRef.current = new Audio(gen.audioBlobUrl);
+        genAudioElementRef.current.onended = () => setPlayingGenId(null);
+        genAudioElementRef.current.play().catch(() => setPlayingGenId(null));
+        setPlayingGenId(gen.id);
+      }
     }
   };
 
@@ -259,7 +333,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
 
   return (
     <div className="w-full max-w-[1080px] mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-      {/* Top Breadcrumb & Zero-Server Badge */}
+      {/* Top Breadcrumb & Edge-TTS Neural Badge */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
         <div className="flex items-center gap-2 text-[#6C6975] flex-wrap">
           <button
@@ -272,12 +346,12 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
           <span className="text-[#C9C5CF]">/</span>
           <span>Audio & Speech</span>
           <span className="text-[#C9C5CF]">/</span>
-          <span className="text-[#191C21] font-medium">Text to Voice</span>
+          <span className="text-[#191C21] font-medium">Edge-TTS Neural Voice</span>
         </div>
 
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono bg-[#EBF5ED] text-[#2F6D44] border border-[#CFE8D7] w-fit select-none">
           <ShieldCheck className="w-3.5 h-3.5 text-[#2F6D44]" />
-          Zero Server Uploads • In-Memory Neural WASM
+          Powered by Python Edge-TTS Engine • Multilingual High Quality
         </div>
       </div>
 
@@ -288,10 +362,10 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
         </div>
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#191C21]">
-            Text to Voice Studio
+            Text to Voice Studio (Edge-TTS Engine)
           </h1>
           <p className="text-[#6C6975] text-sm sm:text-base mt-1">
-            Synthesize warm, natural voiceovers locally in your browser memory.
+            Synthesize ultra-realistic neural speech across 11+ languages and regional voices.
           </p>
         </div>
       </div>
@@ -305,7 +379,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[#191C21] text-base">Speech Script</span>
               <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-[#F2ECE4] text-[#5A5762] border border-[#E2D8CC]">
-                EN-US
+                {selectedPersona.locale}
               </span>
             </div>
 
@@ -336,7 +410,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
               onChange={(e) => setScriptText(e.target.value)}
               rows={4}
               maxLength={5000}
-              placeholder="Enter your script to synthesize warm offline speech..."
+              placeholder="Enter your script to synthesize high-quality Edge-TTS speech..."
               className="w-full bg-transparent resize-none text-[#191C21] placeholder-[#A5A0B2] text-sm sm:text-base leading-relaxed focus:outline-none"
             />
 
@@ -352,18 +426,47 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
           </div>
         </div>
 
-        {/* Section: Voice Persona */}
+        {/* Section: Language Filter Pills */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-[#191C21] text-sm">Voice Persona</span>
-            <span className="text-xs font-mono text-[#79767F] flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#768E7C]" />
-              Local Onnx Model
+            <span className="font-semibold text-[#191C21] text-sm flex items-center gap-1.5">
+              <Globe className="w-4 h-4 text-[#534C72]" />
+              Filter Language / Region
+            </span>
+            <span className="text-xs font-mono text-[#79767F]">
+              Showing {filteredPersonas.length} Voices
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {VOICE_PERSONAS.map((persona) => {
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none">
+            {LANGUAGE_FILTERS.map((lang) => (
+              <button
+                key={lang}
+                onClick={() => {
+                  setSelectedLanguage(lang);
+                  const firstMatch = lang === 'All'
+                    ? VOICE_PERSONAS[0]
+                    : VOICE_PERSONAS.find(p => p.language === lang);
+                  if (firstMatch) {
+                    setSelectedPersonaId(firstMatch.id);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                  selectedLanguage === lang
+                    ? 'bg-[#534C72] text-white shadow-2xs'
+                    : 'bg-[#F2ECE4] text-[#6C6975] hover:bg-[#E8DFD4] hover:text-[#191C21]'
+                }`}
+              >
+                {lang}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Section: Voice Persona Grid */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[320px] overflow-y-auto pr-1">
+            {filteredPersonas.map((persona) => {
               const isSelected = selectedPersonaId === persona.id;
               return (
                 <div
@@ -376,10 +479,23 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
                   }`}
                 >
                   <div className="flex items-start justify-between">
-                    <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm select-none ${persona.bgColor} ${persona.textColor}`}
-                    >
-                      {persona.letter}
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm select-none ${persona.bgColor} ${persona.textColor}`}
+                      >
+                        {persona.letter}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-[#191C21] text-sm flex items-center gap-1">
+                          {persona.name}
+                          {persona.isPopular && (
+                            <Star className="w-3.5 h-3.5 text-[#D97A53] fill-current" title="Most Popular" />
+                          )}
+                        </div>
+                        <div className="text-[11px] font-mono text-[#79767F]">
+                          {persona.voiceId}
+                        </div>
+                      </div>
                     </div>
 
                     <div className="pt-0.5">
@@ -393,17 +509,11 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-3">
-                    <div className="font-semibold text-[#191C21] text-sm">
-                      {persona.name}
-                    </div>
-                    <div className="text-xs text-[#6C6975] mt-0.5">
-                      {persona.subtitle}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-2 border-t border-[#EFE8DD] text-[11px] text-[#5A5762] flex items-center gap-1">
-                    <span>{persona.tag}</span>
+                  <div className="mt-3 pt-2 border-t border-[#EFE8DD] text-[11px] text-[#5A5762] flex items-center justify-between">
+                    <span className="font-medium text-[#534C72]">{persona.tag}</span>
+                    <span className="capitalize px-2 py-0.5 rounded bg-[#F2ECE4] text-[#6C6975] font-mono">
+                      {persona.gender}
+                    </span>
                   </div>
                 </div>
               );
@@ -411,93 +521,61 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
           </div>
         </div>
 
-        {/* Section: Cadence, Pitch, Delivery */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+        {/* Section: Speed Rate & Pitch Offset Controls */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
           
-          {/* Cadence / Speed */}
+          {/* Speed Rate */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-medium">
               <span className="text-[#191C21] flex items-center gap-1.5">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-[#534C72]" />
-                Cadence / Speed
+                Speed Rate (% Change)
               </span>
-              <span className="font-mono text-[#534C72]">{cadence.toFixed(2)}x</span>
+              <span className="font-mono text-[#534C72]">
+                {ratePercentage >= 0 ? `+${ratePercentage}%` : `${ratePercentage}%`}
+              </span>
             </div>
             <input
               type="range"
-              min="0.6"
-              max="1.4"
-              step="0.05"
-              value={cadence}
-              onChange={(e) => setCadence(parseFloat(e.target.value))}
+              min="-50"
+              max="50"
+              step="5"
+              value={ratePercentage}
+              onChange={(e) => setRatePercentage(parseInt(e.target.value))}
               className="w-full accent-[#534C72] cursor-pointer h-1.5 bg-[#E8DFD4] rounded-lg"
             />
             <div className="flex justify-between text-[10px] text-[#79767F] font-mono">
-              <span>0.6x Slow</span>
-              <span>Balanced</span>
-              <span>1.4x Fast</span>
+              <span>-50% Slower</span>
+              <span>Normal (+0%)</span>
+              <span>+50% Faster</span>
             </div>
           </div>
 
-          {/* Pitch Warmth */}
+          {/* Pitch Offset */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs font-medium">
               <span className="text-[#191C21] flex items-center gap-1.5">
                 <Radio className="w-3.5 h-3.5 text-[#D97A53]" />
-                Pitch Warmth
+                Pitch Offset (Hz)
               </span>
               <span className="font-mono text-[#D97A53]">
-                {pitchOffset > 0 ? `+${pitchOffset.toFixed(1)}` : pitchOffset.toFixed(1)} st
+                {pitchHz >= 0 ? `+${pitchHz}Hz` : `${pitchHz}Hz`}
               </span>
             </div>
             <input
               type="range"
-              min="-2.0"
-              max="2.0"
-              step="0.1"
-              value={pitchOffset}
-              onChange={(e) => setPitchOffset(parseFloat(e.target.value))}
+              min="-20"
+              max="20"
+              step="2"
+              value={pitchHz}
+              onChange={(e) => setPitchHz(parseInt(e.target.value))}
               className="w-full accent-[#D97A53] cursor-pointer h-1.5 bg-[#E8DFD4] rounded-lg"
             />
             <div className="flex justify-between text-[10px] text-[#79767F] font-mono">
-              <span>Deeper</span>
-              <span>Natural</span>
-              <span>Higher</span>
+              <span>-20Hz Deeper</span>
+              <span>Natural (+0Hz)</span>
+              <span>+20Hz Higher</span>
             </div>
-          </div>
-
-          {/* Vocal Delivery Intonation */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-medium">
-              <span className="text-[#191C21]">Vocal Delivery</span>
-              <span className="text-[11px] font-mono text-[#79767F]">Intonation</span>
-            </div>
-            
-            <div className="grid grid-cols-2 p-1 bg-[#F2ECE4] rounded-xl border border-[#E2D8CC]">
-              <button
-                onClick={() => setDeliveryMode('natural')}
-                className={`py-1.5 text-xs font-medium rounded-lg transition-all ${
-                  deliveryMode === 'natural'
-                    ? 'bg-white text-[#191C21] shadow-2xs'
-                    : 'text-[#6C6975] hover:text-[#191C21]'
-                }`}
-              >
-                Natural
-              </button>
-              <button
-                onClick={() => setDeliveryMode('whisper')}
-                className={`py-1.5 text-xs font-medium rounded-lg transition-all ${
-                  deliveryMode === 'whisper'
-                    ? 'bg-white text-[#191C21] shadow-2xs'
-                    : 'text-[#6C6975] hover:text-[#191C21]'
-                }`}
-              >
-                Whisper Soft
-              </button>
-            </div>
-            <p className="text-[10px] text-[#79767F] text-center">
-              {deliveryMode === 'natural' ? 'Gentle soothing resonance' : 'Quiet intimate whisper contour'}
-            </p>
           </div>
 
         </div>
@@ -506,7 +584,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
         <div className="pt-4 border-t border-[#E8DFD4] flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs font-mono text-[#5A5762]">
             <span className="w-2 h-2 rounded-full bg-[#3EA25E]" />
-            Engine: <span className="font-semibold text-[#191C21]">Piper WASM Neural</span> (Cached in RAM)
+            Active Voice: <span className="font-semibold text-[#191C21]">{selectedPersona.voiceId}</span>
           </div>
 
           <button
@@ -517,7 +595,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
             {isSynthesizing ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Synthesizing locally...
+                Synthesizing Edge-TTS...
               </>
             ) : (
               <>
@@ -541,10 +619,10 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
             </div>
             <div>
               <div className="font-semibold text-[#191C21] text-sm sm:text-base">
-                Active Synthesis Result
+                Active Edge-TTS Result
               </div>
               <div className="text-xs text-[#6C6975]">
-                {activeResult.persona} • {activeResult.delivery} • {activeResult.sampleRateText}
+                {activeResult.persona} • {activeResult.sampleRateText}
               </div>
             </div>
           </div>
@@ -557,15 +635,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
               title="Download MP3"
             >
               <Download className="w-3 h-3" />
-              .mp3
-            </button>
-            <button
-              onClick={() => handleDownload('wav')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-medium bg-[#F2ECE4] text-[#272A30] border border-[#E2D8CC] hover:bg-[#EAE2D8] transition-colors"
-              title="Download WAV"
-            >
-              <Download className="w-3 h-3" />
-              .wav
+              Download .mp3
             </button>
             <button
               onClick={handleCopyScript}
@@ -609,7 +679,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
           >
             {activeResult.waveform.map((val, idx) => {
               const barProgress = idx / activeResult.waveform.length;
-              const currentProgress = activeResult.currentTime / activeResult.durationSeconds;
+              const currentProgress = activeResult.currentTime / (activeResult.durationSeconds || 1);
               const isPlayed = barProgress <= currentProgress;
 
               return (
@@ -645,13 +715,13 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
           <div className="flex items-center gap-2">
             <RotateCcw className="w-4 h-4 text-[#79767F]" />
             <span className="font-semibold text-[#191C21] text-sm sm:text-base">
-              Recent Generations in this Session
+              Recent Edge-TTS Generations
             </span>
           </div>
 
           <div className="flex items-center gap-1.5 text-xs font-mono text-[#79767F]">
             <Database className="w-3.5 h-3.5 text-[#534C72]" />
-            <span>Stored in browser IndexedDB</span>
+            <span>Stored in browser RAM</span>
           </div>
         </div>
 
@@ -699,13 +769,6 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
                         a.href = gen.audioBlobUrl;
                         a.download = gen.fileName;
                         a.click();
-                      } else {
-                        createSynthesizedWavBlob(gen.text, gen.personaName).then(({ url }) => {
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = gen.fileName;
-                          a.click();
-                        });
                       }
                     }}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-[#5A5762] hover:text-[#191C21] hover:bg-[#F2ECE4] transition-colors"
@@ -732,7 +795,7 @@ export const TextToVoiceStudio: React.FC<TextToVoiceStudioProps> = ({
       <div className="p-4 rounded-xl bg-[#EBF5ED]/80 border border-[#CFE8D7] text-xs text-[#2F6D44] flex items-center justify-center text-center gap-2">
         <ShieldCheck className="w-4 h-4 text-[#2F6D44] shrink-0" />
         <span>
-          Zero-knowledge speech synthesis. No speech or text ever touches an external server. Everything executes locally.
+          Edge-TTS Engine active. Supports English (US/UK), Hindi, Bengali, Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, and Taiwanese Mandarin.
         </span>
       </div>
 
